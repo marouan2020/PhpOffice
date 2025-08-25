@@ -1,3 +1,14 @@
+🚀 Nouveau patch pour PhpOffice !
+
+Je viens de créer un patch pour PhpOffice qui apporte deux améliorations importantes :
+
+✅ Support des listes – Vos contenus avec listes <ul> et <ol> sont maintenant mieux rendus.
+✅ Redimensionnement automatique des images – Les images respectent désormais les dimensions définies dans Word.
+
+Ce patch facilite la conversion Word → HTML tout en conservant la mise en forme et les proportions des images.
+
+Si vous utilisez PhpOffice dans vos projets, ce patch peut vous faire gagner beaucoup de temps et améliorer la qualité de vos exports !
+
 
 # PhpOffice
 Support des listes et redimensionnement des images dans PhpOffice.
