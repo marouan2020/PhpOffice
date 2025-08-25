@@ -1,0 +1,103 @@
+diff --git a/vendor/phpoffice/phpword/src/PhpWord/Writer/HTML/Element/Container.php b/vendor/phpoffice/phpword/src/PhpWord/Writer/HTML/Element/Container.php
+index 6e2569f3c..450c8270b 100644
+--- a/vendor/phpoffice/phpword/src/PhpWord/Writer/HTML/Element/Container.php
++++ b/vendor/phpoffice/phpword/src/PhpWord/Writer/HTML/Element/Container.php
+@@ -41,25 +41,43 @@ class Container extends AbstractElement
+      */
+     public function write()
+     {
+-        $container = $this->element;
+-        if (!$container instanceof ContainerElement) {
+-            return '';
+-        }
+-        $containerClass = substr(get_class($container), strrpos(get_class($container), '\\') + 1);
+-        $withoutP = in_array($containerClass, ['TextRun', 'Footnote', 'Endnote']) ? true : false;
+-        $content = '';
++      $container = $this->element;
++      if (!$container instanceof ContainerElement) {
++          return '';
++      }
++      $containerClass = substr(get_class($container), strrpos(get_class($container), '\\') + 1);
++      $withoutP = in_array($containerClass, ['TextRun', 'Footnote', 'Endnote']) ? true : false;
++      $content = '';
++      $elements = $container->getElements();
++      $insideList = false;
++      foreach ($elements as $element) {
++      $elementClass = get_class($element);
++      $writerClass = str_replace('PhpOffice\\PhpWord\\Element', $this->namespace, $elementClass);
++      if (class_exists($writerClass)) {
++        $writer = new $writerClass($this->parentWriter, $element, $withoutP);
++         $listTypeOpen = '<ol>';
++         if ($writer instanceof \PhpOffice\PhpWord\Writer\HTML\Element\ListItemRun) {
++           $style = $element->getStyle();
++           $listTypeOpen = ($style && $style->getNumStyle() === 'PHPWordList1') ? '<ol>' : '<ul>';
++           if (!$insideList) {
++             $content .= $listTypeOpen;
++             $insideList = true;
++           }
++           $content .= '<li>' . $writer->write() . '</li>';
++         } else {
++           if ($insideList) {
++             $content .= $listTypeOpen === '<ul>' ? '</ul>' : '</ol>';
++             $insideList = FALSE;
++           }
++           $content .= $writer->write();
++         }
++      }
++      }
+ 
+-        $elements = $container->getElements();
+-        foreach ($elements as $element) {
+-            $elementClass = get_class($element);
+-            $writerClass = str_replace('PhpOffice\\PhpWord\\Element', $this->namespace, $elementClass);
+-            if (class_exists($writerClass)) {
+-                /** @var AbstractElement $writer Type hint */
+-                $writer = new $writerClass($this->parentWriter, $element, $withoutP);
+-                $content .= $writer->write();
+-            }
+-        }
++      if ($insideList) {
++      $content .= $listTypeOpen === '<ol>' ? '</ol>' : '</ul>';
++      }
+ 
+-        return $content;
++      return $content;
+     }
+ }
+diff --git a/vendor/phpoffice/phpword/src/PhpWord/Reader/Word2007/AbstractPart.php b/vendor/phpoffice/phpword/src/PhpWord/Reader/Word2007/AbstractPart.php
+index 9d49573d6..4f8f386af 100644
+--- a/vendor/phpoffice/phpword/src/PhpWord/Reader/Word2007/AbstractPart.php
++++ b/vendor/phpoffice/phpword/src/PhpWord/Reader/Word2007/AbstractPart.php
+@@ -518,7 +518,17 @@ protected function readRunChild(XMLReader $xmlReader, DOMElement $node, Abstract
+                 } else {
+                     $imageSource = "zip://{$this->docFile}#{$target}";
+                 }
+-                $parent->addImage($imageSource);
++              /*
++              * Formule de conversion
++              * 1 pouce = 914400 EMUs
++              * 1 pouce = 96 pixels (standard écran)
++              * Donc : 1 pixel = 914400 / 96 = 9525 EMUs
++              */
++              $widthEMUs = $xmlReader->getAttribute('cx', $node, 'wp:inline/wp:extent') ?? 0;
++              $heightEMUs = $xmlReader->getAttribute('cy', $node, 'wp:inline/wp:extent') ?? 0;
++              $width = (int)($widthEMUs / 9525);
++              $height = (int)($heightEMUs / 9525);
++              $parent->addImage($imageSource, ['width' => $width, 'height' => $height]);
+             }
+         } elseif ($node->nodeName == 'w:drawing') {
+             // Office 2011 Image
+@@ -535,8 +545,12 @@ protected function readRunChild(XMLReader $xmlReader, DOMElement $node, Abstract
+             }
+             $target = $this->getMediaTarget($docPart, $embedId);
+             if ($this->hasImageLoading() && null !== $target) {
++                $widthEMUs = $xmlReader->getAttribute('cx', $node, 'wp:inline/wp:extent') ?? 0;
++                $heightEMUs = $xmlReader->getAttribute('cy', $node, 'wp:inline/wp:extent') ?? 0;
++                $width = (int)($widthEMUs / 9525);
++                $height = (int)($heightEMUs / 9525);
+                 $imageSource = "zip://{$this->docFile}#{$target}";
+-                $parent->addImage($imageSource, null, false, $name);
++                $parent->addImage($imageSource, ['width' => $width, 'height' => $height], false, $name);
+             }
+         } elseif ($node->nodeName == 'w:object') {
+             // Object
