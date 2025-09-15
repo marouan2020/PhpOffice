@@ -1,20 +1,21 @@
 # PhpOffice
 Support des listes et redimensionnement des images dans PhpOffice.
 
-### Composer
-```sh
-composer require phpoffice/phpword
-```
 ## Installation
 Ajouter le patch dans composer.json
 ```sh
 "extra": {
     "patches": {
         "phpoffice/phpword": {
-            "Fix phpword reader writer": "[PATHTOYOURPATCH]/phpofficeWord.patch"
+            "Fix phpword reader writer": "https://github.com/marouan2020/PhpOffice/blob/main/phpofficeWord.patch"
         }
     }
 }
+```
+
+### Composer
+```sh
+composer require phpoffice/phpword
 ```
 
 Modifications principales :

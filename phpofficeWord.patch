@@ -1,71 +1,113 @@
-diff --git a/vendor/phpoffice/phpword/src/PhpWord/Writer/HTML/Element/Container.php b/vendor/phpoffice/phpword/src/PhpWord/Writer/HTML/Element/Container.php
-index 6e2569f3c..450c8270b 100644
---- a/vendor/phpoffice/phpword/src/PhpWord/Writer/HTML/Element/Container.php
-+++ b/vendor/phpoffice/phpword/src/PhpWord/Writer/HTML/Element/Container.php
-@@ -41,25 +41,43 @@ class Container extends AbstractElement
+diff --git a/vendor/phpoffice/phpword/src/PhpWord/Style/Font.php b/vendor/phpoffice/phpword/src/PhpWord/Style/Font.php
+index f03e8899d..ec5c685ae 100644
+--- a/vendor/phpoffice/phpword/src/PhpWord/Style/Font.php
++++ b/vendor/phpoffice/phpword/src/PhpWord/Style/Font.php
+@@ -285,6 +285,8 @@ class Font extends AbstractStyle
       */
+     private $fallbackFont = '';
+ 
++    private $backgroundColor = '';
++
+     /**
+      * Create new font style.
+      *
+@@ -326,6 +328,7 @@ public function getStyleValues()
+                 'allCaps' => $this->isAllCaps(),
+                 'fgColor' => $this->getFgColor(),
+                 'hidden' => $this->isHidden(),
++                'backgroundColor' => $this->getBackgroundColor(),
+             ],
+             'spacing' => [
+                 'scale' => $this->getScale(),
+@@ -994,4 +997,14 @@ public function getFallbackFont(): string
+     {
+         return $this->fallbackFont;
+     }
++
++    public function getBackgroundColor() {
++      return $this->backgroundColor;
++    }
++
++    public function setBackgroundColor($color = '') {
++    $this->backgroundColor = $color;
++
++    return $this;
++    }
+ }
+diff --git a/vendor/phpoffice/phpword/src/PhpWord/Writer/HTML/Style/Font.php b/vendor/phpoffice/phpword/src/PhpWord/Writer/HTML/Style/Font.php
+index 1001b64d2..0999d4ac2 100644
+--- a/vendor/phpoffice/phpword/src/PhpWord/Writer/HTML/Style/Font.php
++++ b/vendor/phpoffice/phpword/src/PhpWord/Writer/HTML/Style/Font.php
+@@ -47,6 +47,7 @@ public function write()
+         $underline = $style->getUnderline() != FontStyle::UNDERLINE_NONE;
+         $lineThrough = $style->isStrikethrough() || $style->isDoubleStrikethrough();
+ 
++
+         $css['font-family'] = $this->getValueIf(!empty($font), $font);
+         $css['font-size'] = $this->getValueIf($size !== null, "{$size}pt");
+         $css['color'] = $this->getValueIf($color !== null, "#{$color}");
+@@ -62,6 +63,8 @@ public function write()
+         $css['text-transform'] = $this->getValueIf($style->isAllCaps(), 'uppercase');
+         $css['font-variant'] = $this->getValueIf($style->isSmallCaps(), 'small-caps');
+         $css['display'] = $this->getValueIf($style->isHidden(), 'none');
++        $bgcolor = $style->getBackgroundColor();
++        $css['background-color'] = $this->getValueIf($bgcolor != '', "#{$bgcolor}");
+         $whitespace = $style->getWhiteSpace();
+         if ($whitespace) {
+             $css['white-space'] = $whitespace;
+diff --git a/vendor/phpoffice/phpword/src/PhpWord/Style/Paragraph.php b/vendor/phpoffice/phpword/src/PhpWord/Style/Paragraph.php
+index 5ab7ade67..fcaee0c40 100644
+--- a/vendor/phpoffice/phpword/src/PhpWord/Style/Paragraph.php
++++ b/vendor/phpoffice/phpword/src/PhpWord/Style/Paragraph.php
+@@ -189,6 +189,7 @@ class Paragraph extends Border
+      */
+     private $suppressAutoHyphens = false;
+ 
++    protected ?string $backgroundColor = null;
+     /**
+      * Set Style value.
+      *
+@@ -889,4 +890,14 @@ public function setSuppressAutoHyphens($suppressAutoHyphens): void
+     {
+         $this->suppressAutoHyphens = (bool) $suppressAutoHyphens;
+     }
++
++    public function getBackgroundColor() {
++      return $this->backgroundColor;
++    }
++
++    public function setBackgroundColor(?string $color) {
++      $this->backgroundColor = $color;
++
++      return $this;
++    }
+ }
+diff --git a/vendor/phpoffice/phpword/src/PhpWord/Writer/HTML/Style/Paragraph.php b/vendor/phpoffice/phpword/src/PhpWord/Writer/HTML/Style/Paragraph.php
+index 22267e7b1..c3972e8da 100644
+--- a/vendor/phpoffice/phpword/src/PhpWord/Writer/HTML/Style/Paragraph.php
++++ b/vendor/phpoffice/phpword/src/PhpWord/Writer/HTML/Style/Paragraph.php
+@@ -37,6 +37,7 @@ class Paragraph extends AbstractStyle
      public function write()
      {
--        $container = $this->element;
--        if (!$container instanceof ContainerElement) {
--            return '';
--        }
--        $containerClass = substr(get_class($container), strrpos(get_class($container), '\\') + 1);
--        $withoutP = in_array($containerClass, ['TextRun', 'Footnote', 'Endnote']) ? true : false;
--        $content = '';
-+      $container = $this->element;
-+      if (!$container instanceof ContainerElement) {
-+          return '';
-+      }
-+      $containerClass = substr(get_class($container), strrpos(get_class($container), '\\') + 1);
-+      $withoutP = in_array($containerClass, ['TextRun', 'Footnote', 'Endnote']) ? true : false;
-+      $content = '';
-+      $elements = $container->getElements();
-+      $insideList = false;
-+      foreach ($elements as $element) {
-+      $elementClass = get_class($element);
-+      $writerClass = str_replace('PhpOffice\\PhpWord\\Element', $this->namespace, $elementClass);
-+      if (class_exists($writerClass)) {
-+        $writer = new $writerClass($this->parentWriter, $element, $withoutP);
-+         $listTypeOpen = '<ol>';
-+         if ($writer instanceof \PhpOffice\PhpWord\Writer\HTML\Element\ListItemRun) {
-+           $style = $element->getStyle();
-+           $listTypeOpen = ($style && $style->getNumStyle() === 'PHPWordList1') ? '<ol>' : '<ul>';
-+           if (!$insideList) {
-+             $content .= $listTypeOpen;
-+             $insideList = true;
-+           }
-+           $content .= '<li>' . $writer->write() . '</li>';
-+         } else {
-+           if ($insideList) {
-+             $content .= $listTypeOpen === '<ul>' ? '</ul>' : '</ol>';
-+             $insideList = FALSE;
-+           }
-+           $content .= $writer->write();
-+         }
-+      }
-+      }
+         $style = $this->getStyle();
++
+         if (!$style instanceof \PhpOffice\PhpWord\Style\Paragraph) {
+             return '';
+         }
+@@ -117,6 +118,11 @@ public function write()
+             $css['direction'] = 'rtl';
+         }
  
--        $elements = $container->getElements();
--        foreach ($elements as $element) {
--            $elementClass = get_class($element);
--            $writerClass = str_replace('PhpOffice\\PhpWord\\Element', $this->namespace, $elementClass);
--            if (class_exists($writerClass)) {
--                /** @var AbstractElement $writer Type hint */
--                $writer = new $writerClass($this->parentWriter, $element, $withoutP);
--                $content .= $writer->write();
--            }
--        }
-+      if ($insideList) {
-+      $content .= $listTypeOpen === '<ol>' ? '</ol>' : '</ul>';
-+      }
- 
--        return $content;
-+      return $content;
++        $bgColor = $style->getBackgroundColor();
++        if (!empty($bgColor)) {
++          $css['background-color'] = '#' . $bgColor;
++        }
++
+         return $this->assembleCss($css);
      }
  }
 diff --git a/vendor/phpoffice/phpword/src/PhpWord/Reader/Word2007/AbstractPart.php b/vendor/phpoffice/phpword/src/PhpWord/Reader/Word2007/AbstractPart.php
-index 9d49573d6..4f8f386af 100644
+index 9d49573d6..029f86cb7 100644
 --- a/vendor/phpoffice/phpword/src/PhpWord/Reader/Word2007/AbstractPart.php
 +++ b/vendor/phpoffice/phpword/src/PhpWord/Reader/Word2007/AbstractPart.php
 @@ -518,7 +518,17 @@ protected function readRunChild(XMLReader $xmlReader, DOMElement $node, Abstract
@@ -76,7 +118,7 @@ index 9d49573d6..4f8f386af 100644
 +              /*
 +              * Formule de conversion
 +              * 1 pouce = 914400 EMUs
-+              * 1 pouce = 96 pixels (standard Ã©cran)
++              * 1 pouce = 96 pixels (standard +¬cran)
 +              * Donc : 1 pixel = 914400 / 96 = 9525 EMUs
 +              */
 +              $widthEMUs = $xmlReader->getAttribute('cx', $node, 'wp:inline/wp:extent') ?? 0;
@@ -101,3 +143,11 @@ index 9d49573d6..4f8f386af 100644
              }
          } elseif ($node->nodeName == 'w:object') {
              // Object
+@@ -774,6 +788,7 @@ protected function readFontStyle(XMLReader $xmlReader, DOMElement $domNode)
+             'lang' => [self::READ_VALUE, 'w:lang'],
+             'position' => [self::READ_VALUE, 'w:position'],
+             'hidden' => [self::READ_TRUE,  'w:vanish'],
++            'backgroundColor' => [self::READ_VALUE, 'w:shd', 'w:fill'],
+         ];
+ 
+         return $this->readStyleDefs($xmlReader, $styleNode, $styleDefs);
